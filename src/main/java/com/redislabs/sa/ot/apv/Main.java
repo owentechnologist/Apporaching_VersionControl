@@ -79,6 +79,7 @@ public class Main {
     }
 
     private static void compareNumbers(URI uri,int compareSize) {
+        System.out.println("\n\n> Comparing performance speed and memory usage between regular String and LUA-managed Hash wrapper    \n");
         String simplekey = "simplekey";
         String rollbackKey = "rollbackKey";
         String payload = "0";
@@ -95,7 +96,7 @@ public class Main {
             System.out.println("The simple String takes up "+jedis.memoryUsage(simplekey)+" bytes of memory");
             System.out.println("The rollback key takes up "+jedis.memoryUsage(rollbackKey)+" bytes of memory");
         }
-        System.out.println("\n\n****** BIGGER VALUES FOR KEYS **********\n\n");
+        System.out.println("\n****** BIGGER VALUES FOR KEYS **********\n");
         // Make the payload (value for the keys) much larger:
         for(int x = 0;x<compareSize;x++){
             payload+="12345676890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ!@@#$%^&*()_+{},.<>/?";
@@ -121,6 +122,7 @@ public class Main {
     }
 
     private static void test(URI uri, String keyname){
+        System.out.println("Key called:"+keyname+" begins life with a value of 0");
         for(int x=0;x<10;x++) {
             set(uri, keyname, ""+x);
         }
@@ -128,34 +130,34 @@ public class Main {
         for(int y=0;y<3;y++){
             System.out.println("Calling Rollback [only 1 layer deep is implemented)");
             rollback(uri,keyname);
-            System.out.println("Rollback results in the value now equaling: "+get(uri,keyname));
+            System.out.println("\tRollback (undo) results in the value now equaling: "+get(uri,keyname));
         }
-        System.out.println("After 3 iterations of rollback for the value it now equals: "+get(uri,keyname));
+        System.out.println("After 3 iterations of rollback (flip/flop/undo) for the value it now equals: "+get(uri,keyname));
         try (UnifiedJedis jedis = new UnifiedJedis(uri)) {
             String casKey = "caskey";
             jedis.del(casKey);
             System.out.println("\nTesting Check And Set behavior with new key named: "+casKey+" and versionID of 0");
             long versionID = 0;
             long newVersionID = checkAndSet(uri, casKey, "" + System.nanoTime(), versionID);
-            System.out.println("VersionID of "+casKey+" == "+newVersionID+ " value of "+casKey+" = "+get(uri,casKey));
+            System.out.println("\tAfter update --> VersionID of "+casKey+" == "+newVersionID+ " value of "+casKey+" = "+get(uri,casKey));
             if ((newVersionID != versionID + 1)) {
-                System.out.println("\tValue not updated! You need to refresh your local copy - current versionID is: " + newVersionID);
+                System.out.println("\t[[[[[[{ ALERT }]]]]]]\n\tValue not updated! You need to refresh your local copy - current versionID is: " + newVersionID);
             }
 
             versionID = newVersionID;
             System.out.println("Testing Check And Set behavior with wrong/old versionID of "+(versionID-1));
             newVersionID = checkAndSet(uri, casKey, "" + System.nanoTime(), (versionID-1));
-            System.out.println("VersionID of "+casKey+" == "+newVersionID+ " value of "+casKey+" = "+get(uri,casKey));
+            System.out.println("\tAfter update --> VersionID of "+casKey+" == "+newVersionID+ " value of "+casKey+" = "+get(uri,casKey));
             if (newVersionID != versionID + 1)  {
-                System.out.println("\tValue not updated! You need to refresh your local copy - current versionID is: " + newVersionID);
+                System.out.println("\t[[[[[[{ ALERT }]]]]]]\n\tValue not updated! You need to refresh your local copy - current versionID is: " + newVersionID);
             }
 
             System.out.println("Testing Check And Set behavior with versionID of "+newVersionID);
             versionID = newVersionID;
             newVersionID = checkAndSet(uri, casKey, "" + System.nanoTime(), versionID);
-            System.out.println("VersionID of "+casKey+" == "+newVersionID+ " value of "+casKey+" = "+get(uri,casKey));
+            System.out.println("\tAfter update --> VersionID of "+casKey+" == "+newVersionID+ " value of "+casKey+" = "+get(uri,casKey));
             if (newVersionID != versionID + 1)  {
-                System.out.println("\tValue not updated! You need to refresh your local copy - current versionID is: " + newVersionID);
+                System.out.println("\t[[[[[[{ ALERT }]]]]]]\n\tValue not updated! You need to refresh your local copy - current versionID is: " + newVersionID);
             }
         }
 
