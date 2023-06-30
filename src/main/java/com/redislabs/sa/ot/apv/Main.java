@@ -1,10 +1,7 @@
 package com.redislabs.sa.ot.apv;
-import org.w3c.dom.ranges.Range;
 import redis.clients.jedis.*;
 import redis.clients.jedis.json.Path;
 
-import java.net.URI;
-import java.net.URISyntaxException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -18,10 +15,12 @@ import java.util.List;
  * You can add a username and or password like this:
  * mvn compile exec:java -Dexec.cleanupDaemonThreads=false -Dexec.args="--host 192.168.1.21 --port 12000 --username owen --password supersecret5"
  * You can add a specific keyname to manipulate like this:
- * mvn compile exec:java -Dexec.cleanupDaemonThreads=false -Dexec.args="--host 192.168.1.21 --port 12000 --keyname mykey"
+ * mvn compile exec:java -Dexec.cleanupDaemonThreads=false -Dexec.args="--host 192.168.1.21 --port 12000 --keynamehash mykeyH"
+ * You can use JSON as the wrapper for the interesting value:
+ * mvn compile exec:java -Dexec.cleanupDaemonThreads=false -Dexec.args="--host 192.168.1.21 --port 12000 --keynamejson mykeyJ --usejson true"
  * You can look at the relative costs in speed and mempry of storing extra data for rollback purposes in a Hash vs storing a single String by adding this flag:
- * --docompare <someSize>
- * mvn compile exec:java -Dexec.cleanupDaemonThreads=false -Dexec.args="--host 192.168.1.21 --port 12000 --keyname mykey --docompare 20"
+ * --docompare true
+ * mvn compile exec:java -Dexec.cleanupDaemonThreads=false -Dexec.args="--host 192.168.1.21 --port 12000 --keyname mykey --docompare true"
  *  *
  */
 public class Main {
@@ -158,7 +157,8 @@ public class Main {
         // create the LUA script string for our use:
         String luaString = "";
         if(useJSON) {
-            luaString = "local changeTime = redis.call('TIME') local putold = redis.call('JSON.RESP', KEYS[1], '$.val') local workingVersionID = redis.call('JSON.RESP', KEYS[1], '$.versionID') if not workingVersionID then workingVersionID = 1 else if workingVersionID[1]..'' == ARGV[2]..'' then workingVersionID = ARGV[2] + 1 else return workingVersionID end end if redis.call('EXISTS', KEYS[1]) == 0 then redis.call('JSON.SET', KEYS[1], '$', '{\"val\": ' .. ARGV[1] .. '}') end if putold then redis.call('JSON.SET', KEYS[1], '$.oldval', putold[1]) end redis.call('JSON.SET', KEYS[1], '$.timestamp', changeTime[1] .. ':' .. changeTime[2]) redis.call('JSON.SET', KEYS[1], '$.versionID', workingVersionID) if workingVersionID == ARGV[2] then workingVersionID = -1 else redis.call('JSON.SET', KEYS[1], '$.val', ARGV[1]) end return workingVersionID";
+            luaString = "local changeTime = redis.call('TIME') local putold = redis.call('JSON.RESP', KEYS[1], '$.val') local workingVersionID = redis.call('JSON.RESP', KEYS[1], '$.versionID') if not workingVersionID then workingVersionID = 1 else if workingVersionID[1]..'' == ARGV[2]..'' then workingVersionID = ARGV[2] + 1 else if not tonumber(workingVersionID) then workingVersionID = workingVersionID[1] end return tonumber(workingVersionID) end end if redis.call('EXISTS', KEYS[1]) == 0 then redis.call('JSON.SET', KEYS[1], '$', '{\"val\": ' .. ARGV[1] .. '}') end if putold then redis.call('JSON.SET', KEYS[1], '$.oldval', putold[1]) end redis.call('JSON.SET', KEYS[1], '$.timestamp', changeTime[1] .. ':' .. changeTime[2]) redis.call('JSON.SET', KEYS[1], '$.versionID', workingVersionID) redis.call('JSON.SET', KEYS[1], '$.val', ARGV[1]) if not tonumber(workingVersionID) then workingVersionID = workingVersionID[1] end return tonumber(workingVersionID)";
+            //luaString = "local changeTime = redis.call('TIME') local putold = redis.call('JSON.RESP', KEYS[1], '$.val') local workingVersionID = redis.call('JSON.RESP', KEYS[1], '$.versionID') if not workingVersionID then workingVersionID = 1 else if workingVersionID[1]..'' == ARGV[2]..'' then workingVersionID = ARGV[2] + 1 else return workingVersionID end end if redis.call('EXISTS', KEYS[1]) == 0 then redis.call('JSON.SET', KEYS[1], '$', '{\"val\": ' .. ARGV[1] .. '}') end if putold then redis.call('JSON.SET', KEYS[1], '$.oldval', putold[1]) end redis.call('JSON.SET', KEYS[1], '$.timestamp', changeTime[1] .. ':' .. changeTime[2]) redis.call('JSON.SET', KEYS[1], '$.versionID', workingVersionID) if workingVersionID == ARGV[2] then workingVersionID = -1 else redis.call('JSON.SET', KEYS[1], '$.val', ARGV[1]) end return workingVersionID";
         }else {
             luaString = "local changeTime = redis.call('TIME') local workingVersionID = -1 if ARGV[2] == ''..0 then workingVersionID = 0 end local putold ='nil' if redis.call('HEXISTS',KEYS[1],'val') == 1 then putold = redis.call('HGET', KEYS[1], 'val') workingVersionID = redis.call('HGET',KEYS[1],'versionID') end if workingVersionID..'' == ''..ARGV[2] then workingVersionID = (ARGV[2]+1) redis.call('HSET',KEYS[1],'oldval',putold,'val',ARGV[1],'timestamp',changeTime[1]..':'..changeTime[2],'versionID',workingVersionID) end if workingVersionID..'' == ''..ARGV[2] then return -1 end return workingVersionID";
         }
